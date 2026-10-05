@@ -6,7 +6,6 @@ Needs GROQ_API_KEY.  python scripts/build_seed_cache.py
 """
 import json
 import sys
-import tempfile
 import time
 from pathlib import Path
 
@@ -47,15 +46,43 @@ QUESTIONS = [
 ]
 
 
+# Progress lives here, so a re-run resumes instead of starting over (gitignored).
+BUILD_DB = config.DATA_DIR / "seed_build.sqlite3"
+
+
+def ask(pipeline: ChatPipeline, question: str, attempts: int = 4):
+    for attempt in range(attempts):
+        try:
+            return pipeline.run(Session(id="seed"), question)
+        except Exception as exc:  # e.g. Groq 503 "over capacity" or a 429 rate limit
+            wait = 10 * 2 ** attempt
+            print(f"   ! {type(exc).__name__}: {str(exc)[:90]} - retrying in {wait}s")
+            time.sleep(wait)
+    return None
+
+
 def main() -> None:
-    with tempfile.TemporaryDirectory() as tmp:
-        cache = SemanticCache(Path(tmp) / "seed.sqlite3", dim=384)
+    cache = SemanticCache(BUILD_DB, dim=384)
+    try:
+        done = {row["question"] for row in cache.export()}
         pipeline = ChatPipeline(cache, LLMClient())
+        failed = []
         for q in QUESTIONS:
-            reply = pipeline.run(Session(id="seed"), q)
-            print(f"{'cached' if reply.debug.get('entry_id') else 'skip  '}  {q}")
+            if q in done:
+                print(f"done    {q}")
+                continue
+            reply = ask(pipeline, q)
+            if reply is None:
+                failed.append(q)
+                print(f"FAILED  {q}")
+            else:
+                print(f"{'cached' if reply.debug.get('entry_id') else 'skip  '}  {q}")
             time.sleep(2)  # stay inside the Groq free-tier rate limit
         rows = cache.export()
+    finally:
+        cache.close()
+    if failed:
+        print(f"{len(failed)} questions failed; run the script again later to retry them.")
     config.SEED_CACHE_PATH.write_text(
         "\n".join(json.dumps(r, ensure_ascii=False) for r in rows) + "\n", encoding="utf-8")
     print(f"Wrote {len(rows)} entries to {config.SEED_CACHE_PATH}")

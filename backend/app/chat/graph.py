@@ -12,6 +12,7 @@
                     ▼
                  generate ── store in cache (if safe) ─────────────────────▶ END
 """
+import re
 from dataclasses import dataclass, field
 from typing import TypedDict
 
@@ -47,6 +48,7 @@ class State(TypedDict, total=False):
 
 
 def _norm_chapter(name: str) -> str:
+    name = re.sub(r"^\s*\[?\s*chapter\s*\d+\s*[:.\-]\s*", "", name, flags=re.I).rstrip("]")
     return name.replace("–", "-").replace("—", "-").strip().lower()
 
 

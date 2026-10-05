@@ -19,7 +19,10 @@ class LLMClient:
         # Without a key the server still starts and serves cache hits; LLM calls fail clearly.
         common = dict(base_url=config.LLM_BASE_URL, api_key=config.LLM_API_KEY or "missing",
                       timeout=45, max_retries=2)
-        self._answer = ChatOpenAI(model=config.ANSWER_MODEL, temperature=0.2, **common)
+        # Free-tier models are sometimes "over capacity" (503); then the next one answers.
+        self._answer_models = [ChatOpenAI(model=name, temperature=0.2, **common)
+                               for name in dict.fromkeys([config.ANSWER_MODEL,
+                                                          config.FALLBACK_MODEL])]
         self._small = ChatOpenAI(model=config.CONDENSE_MODEL, temperature=0, **common)
         self.calls = 0
 
@@ -40,15 +43,21 @@ class LLMClient:
         self.calls += 1
         messages = [SystemMessage(prompts.ANSWER_SYSTEM),
                     HumanMessage(prompts.ANSWER_USER.format(context=context, question=question))]
-        try:
-            out = self._answer.with_structured_output(AnswerOut, method="function_calling") \
-                .invoke(messages)
-            if isinstance(out, AnswerOut):
-                return out
-        except Exception:
-            pass  # some models occasionally emit malformed tool calls; fall back to text
-        text = self._answer.invoke(messages).content.strip()
-        return AnswerOut(answer=text, chapters=[], in_scope=bool(text), topic="")
+        error = None
+        for model in self._answer_models:
+            try:
+                out = model.with_structured_output(AnswerOut, method="function_calling") \
+                    .invoke(messages)
+                if isinstance(out, AnswerOut):
+                    return out
+            except Exception as exc:  # malformed tool call, or the model is unavailable
+                error = exc
+            try:  # plain text from the same model before moving on
+                text = model.invoke(messages).content.strip()
+                return AnswerOut(answer=text, chapters=[], in_scope=bool(text), topic="")
+            except Exception as exc:
+                error = exc
+        raise error
 
     def transform(self, kind: str, question: str, answer: str, message: str,
                   context: str) -> str:
@@ -56,8 +65,12 @@ class LLMClient:
         self.calls += 1
         system = prompts.TRANSFORM_SYSTEM.format(
             instruction=prompts.TRANSFORM_INSTRUCTIONS[kind])
-        out = self._answer.invoke([
-            SystemMessage(system),
-            HumanMessage(prompts.TRANSFORM_USER.format(
-                context=context, question=question, answer=answer, message=message))])
-        return out.content.strip()
+        messages = [SystemMessage(system), HumanMessage(prompts.TRANSFORM_USER.format(
+            context=context, question=question, answer=answer, message=message))]
+        error = None
+        for model in self._answer_models:
+            try:
+                return model.invoke(messages).content.strip()
+            except Exception as exc:
+                error = exc
+        raise error

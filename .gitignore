@@ -7,3 +7,4 @@ models/
 data/pdfs/
 data/cache.sqlite3
 frontend/.streamlit/secrets.toml
+data/seed_build.sqlite3

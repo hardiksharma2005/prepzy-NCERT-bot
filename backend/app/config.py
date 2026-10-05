@@ -24,6 +24,8 @@ LLM_BASE_URL = os.getenv("LLM_BASE_URL", "https://api.groq.com/openai/v1")
 LLM_API_KEY = os.getenv("GROQ_API_KEY") or os.getenv("LLM_API_KEY", "")
 ANSWER_MODEL = os.getenv("ANSWER_MODEL", "openai/gpt-oss-120b")
 CONDENSE_MODEL = os.getenv("CONDENSE_MODEL", "openai/gpt-oss-20b")
+# Used when the answer model is over capacity or failing.
+FALLBACK_MODEL = os.getenv("FALLBACK_MODEL", "qwen/qwen3.8-27b")
 
 EMBEDDING_MODEL = os.getenv("EMBEDDING_MODEL", "BAAI/bge-small-en-v1.5")
 

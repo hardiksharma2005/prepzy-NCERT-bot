@@ -142,6 +142,9 @@ class SemanticCache:
             self._db.execute(f"UPDATE {table} SET hits = hits + 1 WHERE {where}", args)
             self._db.commit()
 
+    def close(self) -> None:
+        self._db.close()
+
     def stats(self) -> dict:
         with self._lock:
             entries, hits = self._db.execute(
