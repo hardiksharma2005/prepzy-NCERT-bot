@@ -1,0 +1,19 @@
+# Backend (FastAPI + LangGraph + FAISS). The Streamlit app has its own frontend/requirements.txt.
+fastapi==0.142.2
+uvicorn[standard]==0.54.0
+pydantic==2.13.5
+python-dotenv==1.2.4
+langchain-core==1.6.6
+langchain-community==0.4.2
+langchain-openai==1.6.7
+langchain-text-splitters==1.1.3
+langgraph==1.2.12
+faiss-cpu==1.15.1
+fastembed==0.8.1
+numpy==2.5.3
+requests==2.34.2
+# ingestion + tests
+pypdf==6.19.0
+fonttools
+pytest==9.1.1
+httpx==0.28.1

@@ -1,0 +1,8 @@
+.venv
+models
+data/pdfs
+data/cache.sqlite3
+.env
+**/__pycache__
+.pytest_cache
+.git
